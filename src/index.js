@@ -370,7 +370,7 @@ function tripPage(data, num) {
   `);
 }
 const MANIFEST = JSON.stringify({
-  name: "TERMINAL · vlaky.ensecnet.net", short_name: "TERMINAL", start_url: "/", display: "standalone",
+  name: "vlaky.ensecnet.net", short_name: "vlaky", start_url: "/", display: "standalone",
   background_color: "#0a0f0a", theme_color: "#0a0f0a",
   icons: [{ src: "/icon.svg", sizes: "any", type: "image/svg+xml" }],
 });
