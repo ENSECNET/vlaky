@@ -68,6 +68,27 @@ async function getBoard(env, stationId) {
   return { station, rows, now: minutes, weekend };
 }
 
+// Trasa vlaku: nájdi trip podľa čísla a (voliteľne) stanice+času odchodu, vráť všetky zastávky.
+async function getTrip(env, num, fromStation, depMin) {
+  // nájdi správny trip_key: vlak s daným číslom, ktorý zastavuje vo fromStation s odchodom depMin
+  let tripKey = null;
+  if (fromStation && depMin != null) {
+    const r = await env.DB.prepare(
+      `SELECT trip_key FROM trip_stops WHERE station_id=? AND dep_min=? AND trip_key IN
+        (SELECT trip_key FROM trips WHERE num=?) LIMIT 1`).bind(fromStation, depMin, num).first();
+    if (r) tripKey = r.trip_key;
+  }
+  if (!tripKey) {
+    const r = await env.DB.prepare(`SELECT trip_key FROM trips WHERE num=? LIMIT 1`).bind(num).first();
+    if (r) tripKey = r.trip_key;
+  }
+  if (!tripKey) return null;
+  const trip = await env.DB.prepare(`SELECT num,cat,headsign,origin,dest FROM trips WHERE trip_key=?`).bind(tripKey).first();
+  const stops = (await env.DB.prepare(
+    `SELECT seq,station_id,name,arr_min,dep_min FROM trip_stops WHERE trip_key=? ORDER BY seq ASC`).bind(tripKey).all()).results || [];
+  return { trip, stops, fromStation: fromStation || null };
+}
+
 // ---------- HTML ----------
 const STYLE = `
 :root{--bg:#0a0f0a;--panel:#0e160e;--line:#15301a;--green:#39ff7a;--green-dim:#1f6b3e;--txt:#bfe9cc;--muted:#4f7a5d;--past:#2a3f31}
@@ -94,7 +115,9 @@ button,.btn{background:var(--panel);border:1px solid var(--line);color:var(--gre
 .phead .st{color:var(--green);font-weight:700}.phead .star{cursor:pointer;color:var(--muted)}.phead .star.on{color:var(--green)}
 .cols{display:flex;color:var(--muted);font-size:.6rem;text-transform:uppercase;letter-spacing:.5px;padding:6px 12px 2px}
 .cols .c1{flex:0 0 52px}.cols .c2{flex:1}.cols .c3{flex:0 0 64px;text-align:right}
-.row{display:flex;align-items:center;padding:9px 12px;border-top:1px solid #102014;font-variant-numeric:tabular-nums}
+.row{display:flex;align-items:center;padding:9px 12px;border-top:1px solid #102014;font-variant-numeric:tabular-nums;text-decoration:none;color:inherit}
+a.row:active{background:#11221a}
+a.row:hover .dest .mq{color:var(--green)}
 .row .dep{flex:0 0 52px;color:var(--green);font-weight:700;font-size:1rem}
 .row .dest{flex:1;overflow:hidden;white-space:nowrap;position:relative}
 .row .dest .mq{display:inline-block;white-space:nowrap}
@@ -110,6 +133,29 @@ button,.btn{background:var(--panel);border:1px solid var(--line);color:var(--gre
 .row.past{opacity:.38}.row.past .dep{color:var(--past);font-weight:400}
 .row:not(.past):first-of-type .dep{text-shadow:0 0 8px rgba(57,255,122,.5)}
 .empty{padding:14px 12px;color:var(--muted)}
+.trip{padding:4px 0}
+.thead{padding:10px 12px;border-bottom:1px solid var(--line)}
+.thead .tnum{color:var(--green);font-weight:700;font-size:1.05rem}
+.thead .troute{color:var(--txt);margin-top:2px}
+.thead .troute .arr{color:var(--muted)}
+.tstop{display:flex;align-items:center;gap:12px;padding:8px 12px;position:relative}
+.tstop .ttime{flex:0 0 92px;font-variant-numeric:tabular-nums;font-size:.82rem;line-height:1.25}
+.tstop .ttime .a{color:var(--muted)}.tstop .ttime .d{color:var(--txt);font-weight:600}
+.tstop .tdot{flex:0 0 12px;display:flex;justify-content:center;position:relative}
+.tstop .tdot i{width:10px;height:10px;border-radius:50%;background:var(--green-dim);display:block;z-index:1}
+.tstop .tname{flex:1;color:var(--txt)}
+/* spojnica medzi bodmi */
+.tstop:not(:last-child) .tdot::after{content:"";position:absolute;top:12px;bottom:-16px;width:2px;background:var(--line);left:50%;transform:translateX(-50%)}
+/* už prejdené stanice — tmavšie */
+.tstop.done{opacity:.4}
+.tstop.done .tdot i{background:var(--past)}
+.tstop.done .ttime .d{color:var(--past);font-weight:400}
+/* aktuálna stanica (odkiaľ sa pozeráš) — zvýraznená */
+.tstop.here{background:#0c1a10}
+.tstop.here .tdot i{background:var(--green);box-shadow:0 0 8px var(--green);width:13px;height:13px}
+.tstop.here .tname{color:var(--green);font-weight:700}
+.tstop.here .ttime .d{color:var(--green);font-weight:700}
+/* nasledujúce stanice — plné, výrazné (default) */
 footer{margin-top:auto;color:var(--muted);font-size:.62rem;line-height:1.5;border-top:1px solid var(--line);padding-top:8px}
 footer b{color:var(--green-dim)}
 a.back{color:var(--green);text-decoration:none}
@@ -208,10 +254,11 @@ function boardPage(board, stationId) {
   const { minutes } = nowParts();
   const rowsHtml = board.rows.length ? board.rows.map(r => {
     const eta = r.past ? "" : (r.dep_min - minutes <= 0 ? "teraz" : "o " + (r.dep_min - minutes) + "′");
-    return `<div class="row${r.past?" past":""}">
+    const href = `/vlak/${encodeURIComponent(r.num||"")}?z=${encodeURIComponent(stationId)}&t=${r.dep_min}`;
+    return `<a class="row${r.past?" past":""}" href="${href}">
       <span class="dep">${mmToHHMM(r.dep_min)}</span>
       <span class="dest"><span class="mq">${esc(r.headsign||"")} <small>${esc(r.cat||"")}${r.num?" "+esc(r.num):""}</small></span></span>
-      <span class="eta">${eta}</span></div>`;
+      <span class="eta">${eta}</span></a>`;
   }).join("") : `<div class="empty">Dnes už nič neodchádza.</div>`;
 
   return pageShell(board.station.name + " · odchody", `
@@ -249,6 +296,51 @@ function boardPage(board, stationId) {
   `);
 }
 
+function tripPage(data, num) {
+  if (!data || !data.trip) {
+    return pageShell("vlak nenájdený", `
+    <header><div class="brand">vlaky<small>.ensecnet.net</small></div></header>
+    <div class="empty">Vlak „${esc(num)}" sa nenašiel. <a class="back" href="/">← späť</a></div>`);
+  }
+  const { trip, stops, fromStation } = data;
+  const { minutes } = nowParts();
+  // index aktuálnej stanice (odkiaľ sa pozeráš)
+  const hereIdx = fromStation ? stops.findIndex(s => s.station_id === fromStation) : -1;
+  const t = v => v == null ? "" : mmToHHMM(v);
+  const stopsHtml = stops.map((s, i) => {
+    let cls = "";
+    if (hereIdx >= 0) cls = i < hereIdx ? "done" : (i === hereIdx ? "here" : "");
+    const arr = s.arr_min != null ? `<span class="a">${t(s.arr_min)}</span>` : `<span class="a">—</span>`;
+    const dep = s.dep_min != null ? `<span class="d">${t(s.dep_min)}</span>` : `<span class="d">—</span>`;
+    return `<div class="tstop ${cls}">
+      <span class="ttime">${arr}<br>${dep}</span>
+      <span class="tdot"><i></i></span>
+      <span class="tname">${esc(s.name)}</span>
+    </div>`;
+  }).join("");
+
+  const backHref = fromStation ? `/${encodeURIComponent(fromStation)}` : "/";
+  return pageShell(`${trip.cat||""} ${num} · trasa`, `
+  <header><div class="brand">vlaky<small>.ensecnet.net</small></div><div class="clock" id="clk"></div></header>
+  <div><a class="back" href="${backHref}">← späť na odchody</a></div>
+  <div class="panel trip">
+    <div class="thead">
+      <div class="tnum">${esc(trip.cat||"")} ${esc(num)}</div>
+      <div class="troute">${esc(trip.origin||"")} <span class="arr">→</span> ${esc(trip.dest||"")}</div>
+    </div>
+    <div class="cols"><span class="c1">prích.<br>odch.</span><span class="c2" style="padding-left:24px">stanica</span></div>
+    ${stopsHtml}
+  </div>
+  <footer>Plánový čas (GTFS), <b>bez živých meškaní</b>. Časy príchodu / odchodu.</footer>
+  `, `
+  const clk=document.getElementById('clk');
+  function tick(){clk.textContent=new Date().toLocaleTimeString('sk-SK',{timeZone:'${TZ}',hour:'2-digit',minute:'2-digit'});}
+  tick();setInterval(tick,15000);
+  // doscrolluj k aktuálnej stanici
+  const here=document.querySelector('.tstop.here');
+  if(here)here.scrollIntoView({block:'center',behavior:'instant'});
+  `);
+}
 const MANIFEST = JSON.stringify({
   name: "vlaky.ensecnet.net", short_name: "vlaky", start_url: "/", display: "standalone",
   background_color: "#0a0f0a", theme_color: "#0a0f0a",
@@ -400,6 +492,28 @@ export default {
       if (!s) return Response.json({ error: "no station" }, { status: 400 });
       const board = await getBoard(env, s);
       return Response.json(board, { headers: { "cache-control": `public,max-age=${BOARD_CACHE_S}` } });
+    }
+
+    // API: trasa vlaku
+    if (path === "/api/trip") {
+      const num = url.searchParams.get("num");
+      if (!num) return Response.json({ error: "no train" }, { status: 400 });
+      const z = url.searchParams.get("z");
+      const t = url.searchParams.get("t");
+      const data = await getTrip(env, num, z, t != null ? parseInt(t, 10) : null);
+      return Response.json(data || { error: "not found" }, { headers: { "cache-control": `public,max-age=3600` } });
+    }
+
+    // /vlak/{cislo} → trasa vlaku
+    if (path.startsWith("/vlak/")) {
+      const num = decodeURIComponent(path.replace(/^\/vlak\/+/, "").replace(/\/+$/, ""));
+      if (num) {
+        const z = url.searchParams.get("z");
+        const t = url.searchParams.get("t");
+        const data = await getTrip(env, num, z, t != null ? parseInt(t, 10) : null);
+        const html = tripPage(data, num);
+        return new Response(html, { headers: { "content-type": "text/html;charset=utf-8", "cache-control": `public,max-age=3600` } });
+      }
     }
 
     // Home

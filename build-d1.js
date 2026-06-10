@@ -108,6 +108,8 @@ function main() {
   // Vytvor stanice (len tie, kde reálne zastavuje vlak) a odchody
   const stationsMap = new Map(); // slug -> {id,name,norm,lat,lon}
   const departures = []; // {station_id, dep_min, cat, num, headsign, wd, we}
+  const tripsMap = new Map();   // trip_key -> {num,cat,headsign,origin,dest,wd,we}
+  const tripStopsArr = [];      // {trip_key, seq, station_id, name, arr_min, dep_min}
 
   for (const [tripId, sts] of Object.entries(tripStops)) {
     const meta = tripMeta[tripId];
@@ -115,6 +117,32 @@ function main() {
     const last = sts[sts.length - 1];
     const lastStop = stopById[last.stop_id];
     const destName = meta.headsign || (lastStop ? lastStop.name : "");
+
+    // --- TRASA vlaku (všetky zastávky tripu, vrátane konečnej) ---
+    const validStops = sts.filter(st => { const s = stopById[st.stop_id]; return s && s.name; });
+    if (validStops.length >= 2) {
+      const firstStop = stopById[validStops[0].stop_id];
+      const finalStop = stopById[validStops[validStops.length - 1].stop_id];
+      // trip_key: číslo + čas odchodu z prvej stanice (rozlíši varianty toho istého čísla)
+      const tkey = `${meta.num}_${hhmmToMin(validStops[0].departure_time || validStops[0].arrival_time || "0:0")}`;
+      if (!tripsMap.has(tkey)) {
+        tripsMap.set(tkey, {
+          trip_key: tkey, num: meta.num, cat: meta.cat,
+          headsign: destName.trim(),
+          origin: firstStop.name.trim(), dest: finalStop.name.trim(),
+          wd: meta.svc.wd, we: meta.svc.we,
+        });
+        validStops.forEach((st, idx) => {
+          const stop = stopById[st.stop_id];
+          tripStopsArr.push({
+            trip_key: tkey, seq: idx,
+            station_id: slug(stop.name), name: stop.name.trim(),
+            arr_min: st.arrival_time ? hhmmToMin(st.arrival_time) : null,
+            dep_min: st.departure_time ? hhmmToMin(st.departure_time) : null,
+          });
+        });
+      }
+    }
 
     for (let i = 0; i < sts.length; i++) {
       const st = sts[i];
@@ -163,12 +191,27 @@ function main() {
       .join(",");
     out.push(`INSERT OR IGNORE INTO departures (station_id,dep_min,cat,num,headsign,wd,we) VALUES ${chunk};`);
   }
+  // trasy vlakov
+  out.push("DELETE FROM trip_stops; DELETE FROM trips;");
+  const trArr = [...tripsMap.values()];
+  for (let i = 0; i < trArr.length; i += 400) {
+    const chunk = trArr.slice(i, i + 400)
+      .map(t => `(${sqlStr(t.trip_key)},${sqlStr(t.num)},${sqlStr(t.cat)},${sqlStr(t.headsign)},${sqlStr(t.origin)},${sqlStr(t.dest)},${t.wd},${t.we})`)
+      .join(",");
+    out.push(`INSERT OR IGNORE INTO trips (trip_key,num,cat,headsign,origin,dest,wd,we) VALUES ${chunk};`);
+  }
+  for (let i = 0; i < tripStopsArr.length; i += 400) {
+    const chunk = tripStopsArr.slice(i, i + 400)
+      .map(s => `(${sqlStr(s.trip_key)},${s.seq},${sqlStr(s.station_id)},${sqlStr(s.name)},${s.arr_min==null?"NULL":s.arr_min},${s.dep_min==null?"NULL":s.dep_min})`)
+      .join(",");
+    out.push(`INSERT OR IGNORE INTO trip_stops (trip_key,seq,station_id,name,arr_min,dep_min) VALUES ${chunk};`);
+  }
 
   fs.mkdirSync(path.join(__dirname, "data"), { recursive: true });
   fs.writeFileSync(path.join(__dirname, "data", "seed.sql"), out.join("\n"));
   // aj zoznam staníc do JSON pre autocomplete (statický, cachovaný v prehliadači)
   fs.writeFileSync(path.join(__dirname, "data", "stations.json"),
     JSON.stringify(stArr.map(s => ({ id: s.id, name: s.name, norm: s.norm, lat: s.lat, lon: s.lon }))));
-  console.log(`OK: ${stArr.length} staníc, ${deps.length} odchodov → data/seed.sql + data/stations.json`);
+  console.log(`OK: ${stArr.length} staníc, ${deps.length} odchodov, ${trArr.length} trás, ${tripStopsArr.length} zastávok → data/seed.sql`);
 }
 main();
