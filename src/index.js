@@ -304,12 +304,13 @@ function tripPage(data, num) {
   }
   const { trip, stops, fromStation } = data;
   const { minutes } = nowParts();
-  // index aktuálnej stanice (odkiaľ sa pozeráš)
-  const hereIdx = fromStation ? stops.findIndex(s => s.station_id === fromStation) : -1;
   const t = v => v == null ? "" : mmToHHMM(v);
+  // referenčný čas zastávky = odchod (na konečnej príchod)
+  const stopTime = s => (s.dep_min != null ? s.dep_min : s.arr_min);
+  // Časová logika: zastávka, ktorej čas už prešiel = tmavá. Kam vlak ešte príde = svetlá.
   const stopsHtml = stops.map((s, i) => {
-    let cls = "";
-    if (hereIdx >= 0) cls = i < hereIdx ? "done" : (i === hereIdx ? "here" : "");
+    const tm = stopTime(s);
+    const cls = (tm != null && tm < minutes) ? "done" : "";
     const arr = s.arr_min != null ? `<span class="a">${t(s.arr_min)}</span>` : `<span class="a">—</span>`;
     const dep = s.dep_min != null ? `<span class="d">${t(s.dep_min)}</span>` : `<span class="d">—</span>`;
     return `<div class="tstop ${cls}">
@@ -336,9 +337,11 @@ function tripPage(data, num) {
   const clk=document.getElementById('clk');
   function tick(){clk.textContent=new Date().toLocaleTimeString('sk-SK',{timeZone:'${TZ}',hour:'2-digit',minute:'2-digit'});}
   tick();setInterval(tick,15000);
-  // doscrolluj k aktuálnej stanici
-  const here=document.querySelector('.tstop.here');
-  if(here)here.scrollIntoView({block:'center',behavior:'instant'});
+  // každú minútu obnov, aby zvýraznenie sledovalo aktuálny čas
+  setTimeout(()=>location.reload(),60000);
+  // doscrolluj k prvej nadchádzajúcej (svetlej) stanici
+  const next=document.querySelector('.tstop:not(.done)');
+  if(next)next.scrollIntoView({block:'center',behavior:'instant'});
   `);
 }
 const MANIFEST = JSON.stringify({
@@ -512,7 +515,7 @@ export default {
         const t = url.searchParams.get("t");
         const data = await getTrip(env, num, z, t != null ? parseInt(t, 10) : null);
         const html = tripPage(data, num);
-        return new Response(html, { headers: { "content-type": "text/html;charset=utf-8", "cache-control": `public,max-age=3600` } });
+        return new Response(html, { headers: { "content-type": "text/html;charset=utf-8", "cache-control": "no-store" } });
       }
     }
 
