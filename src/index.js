@@ -4,7 +4,7 @@
  * Routy:
  *   /                       → výber stanice (search + obľúbené)
  *   /{stanica}              → tabuľa odchodov pre stanicu (3 odišlé + 15 ďalších)
- *   /api/stations           → zoznam staníc (autocomplete), cache 24h
+ *   /api/stations           → zoznam staníc (autocomplete), bez cache, vzdy z D1
  *   /api/board?s=ID         → JSON odchody pre stanicu, edge cache 45s
  *   /api/nearest?lat=&lon=  → najbližšia stanica (GPS sa rieši v prehliadači, sem prídu len súradnice)
  *   /healthz
@@ -335,15 +335,10 @@ export default {
     if (path === "/manifest.webmanifest") return new Response(MANIFEST, { headers: { "content-type": "application/manifest+json" } });
     if (path === "/icon.svg") return new Response(ICON, { headers: { "content-type": "image/svg+xml", "cache-control": "public,max-age=86400" } });
 
-    // API: zoznam staníc (cache 24h na hrane)
+    // API: zoznam staníc (bez cache, vzdy z D1 na hrane)
     if (path === "/api/stations") {
-      const cache = caches.default;
-      let hit = await cache.match(request);
-      if (hit) return hit;
       const { results } = await env.DB.prepare(`SELECT id,name,norm FROM stations ORDER BY name`).all();
-      const resp = Response.json(results || [], { headers: { "cache-control": `public,max-age=600` } });
-      ctx.waitUntil(cache.put(request, resp.clone()));
-      return resp;
+      return Response.json(results || [], { headers: { "cache-control": "no-store" } });
     }
 
     // API: najbližšia stanica (výpočet z prijatých súradníc; nič sa neukladá)
