@@ -83,11 +83,10 @@ button,.btn{background:var(--panel);border:1px solid var(--line);color:var(--gre
 .geo{white-space:nowrap}
 .hint{color:var(--muted);font-size:.72rem}
 .results{display:flex;flex-direction:column;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden}
-.results a{background:var(--panel);color:var(--txt);text-decoration:none;padding:11px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.results a{background:var(--panel);color:var(--txt);text-decoration:none;padding:11px 12px;display:block}
 .results a:active{background:#11221a}
 .results a.sel{background:#11221a}
 .results a b{color:var(--green);font-weight:700}
-.results a .sub{color:var(--muted);font-size:.7rem;white-space:nowrap}
 .favs{display:flex;flex-wrap:wrap;gap:8px}
 .fav{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 12px;color:var(--green);text-decoration:none;font-size:.85rem}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
@@ -167,7 +166,7 @@ function homePage() {
       .sort((a,b)=>a.sc-b.sc||a.s.norm.length-b.s.norm.length).slice(0,15).map(x=>x.s);
     if(!cur.length){hint.textContent='Nic sa nenaslo pre \u201E'+q.value+'\u201C.';return;}
     hint.textContent=cur.length+' '+(cur.length===1?'stanica':(cur.length<5?'stanice':'stanic'));
-    res.innerHTML=cur.map((s,idx)=>'<a href="/'+s.id+'" data-i="'+idx+'">'+hi(s.name,v)+'</a>').join('');
+    res.innerHTML=cur.map((s,idx)=>'<a href="/'+s.id+'">'+hi(s.name,v)+'</a>').join('');
   }
   const debounce=(f,ms)=>{let t;return()=>{clearTimeout(t);t=setTimeout(f,ms);};};
   q.addEventListener('input',debounce(run,90));
@@ -342,7 +341,7 @@ export default {
       let hit = await cache.match(request);
       if (hit) return hit;
       const { results } = await env.DB.prepare(`SELECT id,name,norm FROM stations ORDER BY name`).all();
-      const resp = Response.json(results || [], { headers: { "cache-control": `public,max-age=86400` } });
+      const resp = Response.json(results || [], { headers: { "cache-control": `public,max-age=600` } });
       ctx.waitUntil(cache.put(request, resp.clone()));
       return resp;
     }

@@ -118,4 +118,3 @@ do priečinka a spusti skript znova.
 Cestovný poriadok 2025/2026 platí 14.12.2025 – 12.12.2026. Stačí spustiť
 `update.ps1` raz za mesiac (alebo po veľkej zmene CP). Automatický mesačný
 refresh cez Cloudflare Cron Trigger je plánovaný do v2.
-nic zaujimave
