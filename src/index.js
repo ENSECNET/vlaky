@@ -4,7 +4,7 @@
  * Routy:
  *   /                       → výber stanice (search + obľúbené)
  *   /{stanica}              → tabuľa odchodov pre stanicu (3 odišlé + 15 ďalších)
- *   /api/stations           → zoznam staníc (autocomplete), bez cache, vzdy z D1
+ *   /api/stations           → zoznam staníc (autocomplete), cache 1h
  *   /api/board?s=ID         → JSON odchody pre stanicu, edge cache 45s
  *   /api/nearest?lat=&lon=  → najbližšia stanica (GPS sa rieši v prehliadači, sem prídu len súradnice)
  *   /healthz
@@ -121,6 +121,7 @@ function pageShell(title, bodyHtml, extraScript="") {
 <meta name="theme-color" content="#0a0f0a"><title>${esc(title)}</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <style>${STYLE}</style></head><body><div class="wrap">${bodyHtml}</div>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(()=>{});}</script>
 <script>${extraScript}</script></body></html>`;
 }
 
@@ -255,6 +256,38 @@ const MANIFEST = JSON.stringify({
 });
 const ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="#0a0f0a"/><text x="32" y="44" font-family="monospace" font-size="40" fill="#39ff7a" text-anchor="middle">⇄</text></svg>`;
 
+// Service worker: appshell + dáta cache-first s tichým revalidate na pozadí.
+// SW_REV zvýš pri zmene SW logiky alebo keď chceš vynútiť preplach cache u klientov.
+const SW_REV = "2026-06-10a";
+const CACHE_V = "vlaky-" + SW_REV;
+const SW = `
+const V='${CACHE_V}';
+self.addEventListener('install',e=>{self.skipWaiting();});
+self.addEventListener('activate',e=>{e.waitUntil((async()=>{
+  const keys=await caches.keys();
+  await Promise.all(keys.filter(k=>k!==V).map(k=>caches.delete(k)));
+  await self.clients.claim();
+})());});
+self.addEventListener('fetch',e=>{
+  const req=e.request;
+  if(req.method!=='GET')return;
+  const url=new URL(req.url);
+  if(url.origin!==location.origin)return;
+  // ops dashboard nikdy necachujeme
+  if(url.pathname.startsWith('/ops')||url.pathname.startsWith('/api/ops'))return;
+  // stale-while-revalidate: vrat z cache hned, na pozadi obnov
+  e.respondWith((async()=>{
+    const cache=await caches.open(V);
+    const cached=await cache.match(req);
+    const net=fetch(req).then(r=>{
+      if(r&&r.status===200)cache.put(req,r.clone());
+      return r;
+    }).catch(()=>null);
+    return cached||(await net)||new Response('offline',{status:503});
+  })());
+});`;
+
+
 function opsBarRow(label, val, max) {
   const pct = max > 0 ? Math.round((val / max) * 100) : 0;
   return `<div class="orow"><span class="olbl">${esc(label)}</span><span class="obar"><i style="width:${pct}%"></i></span><span class="oval">${val}</span></div>`;
@@ -333,12 +366,18 @@ export default {
       return new Response(opsPage({ since, totals, byStation, byRegion, byHour }), { headers: { "content-type": "text/html;charset=utf-8" } });
     }
     if (path === "/manifest.webmanifest") return new Response(MANIFEST, { headers: { "content-type": "application/manifest+json" } });
+    if (path === "/sw.js") return new Response(SW, { headers: { "content-type": "application/javascript", "cache-control": "no-cache" } });
     if (path === "/icon.svg") return new Response(ICON, { headers: { "content-type": "image/svg+xml", "cache-control": "public,max-age=86400" } });
 
-    // API: zoznam staníc (bez cache, vzdy z D1 na hrane)
+    // API: zoznam staníc (cache 1h na hrane)
     if (path === "/api/stations") {
+      const cache = caches.default;
+      let hit = await cache.match(request);
+      if (hit) return hit;
       const { results } = await env.DB.prepare(`SELECT id,name,norm FROM stations ORDER BY name`).all();
-      return Response.json(results || [], { headers: { "cache-control": "no-store" } });
+      const resp = Response.json(results || [], { headers: { "cache-control": "public,max-age=3600" } });
+      ctx.waitUntil(cache.put(request, resp.clone()));
+      return resp;
     }
 
     // API: najbližšia stanica (výpočet z prijatých súradníc; nič sa neukladá)
