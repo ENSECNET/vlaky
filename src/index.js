@@ -13,6 +13,8 @@
  * Štatistiky: anonymný agregát (deň, stanica, hodina, kraj, mesto) z request.cf. Žiadne IP/GPS.
  */
 
+import { MICHROMA_WOFF2_B64 } from "./font.js";
+
 const TZ = "Europe/Bratislava";
 const PAST = 3, NEXT = 15;
 const BOARD_CACHE_S = 45;
@@ -46,24 +48,37 @@ async function logView(env, ctx, stationId, cf) {
 }
 
 async function getBoard(env, stationId) {
-  const { minutes } = nowParts();
-  const { wd } = nowParts();
+  const { minutes, wd } = nowParts();
   const weekend = isWeekend(wd);
   const dayCol = weekend ? "we" : "wd";
-  // ďalšie odchody >= teraz
+  // ďalšie odchody >= teraz (dnes)
   const next = await env.DB.prepare(
     `SELECT dep_min,cat,num,headsign FROM departures
      WHERE station_id=? AND ${dayCol}=1 AND dep_min>=?
      ORDER BY dep_min ASC LIMIT ?`).bind(stationId, minutes, NEXT).all();
-  // pár práve odišlých
+  let nextRows = (next.results || []).map(r => ({ ...r, past:false, tomorrow:false }));
+
+  // ak dnes už zostalo málo spojov, doplň zajtrajšie ráno (od začiatku dňa)
+  if (nextRows.length < NEXT) {
+    const wdTom = (wd + 1) % 7;
+    const colTom = isWeekend(wdTom) ? "we" : "wd";
+    const need = NEXT - nextRows.length;
+    const tom = await env.DB.prepare(
+      `SELECT dep_min,cat,num,headsign FROM departures
+       WHERE station_id=? AND ${colTom}=1
+       ORDER BY dep_min ASC LIMIT ?`).bind(stationId, need).all();
+    nextRows = nextRows.concat((tom.results || []).map(r => ({ ...r, past:false, tomorrow:true })));
+  }
+
+  // pár práve odišlých (dnes)
   const past = await env.DB.prepare(
     `SELECT dep_min,cat,num,headsign FROM departures
      WHERE station_id=? AND ${dayCol}=1 AND dep_min<?
      ORDER BY dep_min DESC LIMIT ?`).bind(stationId, minutes, PAST).all();
   const station = await env.DB.prepare(`SELECT id,name FROM stations WHERE id=?`).bind(stationId).first();
   const rows = [
-    ...(past.results||[]).reverse().map(r => ({ ...r, past:true })),
-    ...(next.results||[]).map(r => ({ ...r, past:false })),
+    ...(past.results||[]).reverse().map(r => ({ ...r, past:true, tomorrow:false })),
+    ...nextRows,
   ];
   return { station, rows, now: minutes, weekend };
 }
@@ -91,11 +106,14 @@ async function getTrip(env, num, fromStation, depMin) {
 
 // ---------- HTML ----------
 const STYLE = `
+@font-face{font-family:'Michroma';font-style:normal;font-weight:400;font-display:swap;src:url('/font/michroma.woff2') format('woff2')}
 :root{--bg:#0a0f0a;--panel:#0e160e;--line:#15301a;--green:#39ff7a;--green-dim:#1f6b3e;--txt:#bfe9cc;--muted:#4f7a5d;--past:#2a3f31}
 *{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--txt);font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;-webkit-font-smoothing:antialiased}
 .wrap{max-width:520px;margin:0 auto;padding:14px 12px 28px;min-height:100dvh;display:flex;flex-direction:column;gap:12px}
 header{display:flex;align-items:baseline;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:8px}
-.brand{color:var(--green);font-weight:700;letter-spacing:.5px}.brand small{color:var(--muted);font-weight:400}
+.brand{display:flex;flex-direction:column;gap:3px}
+.brand .name{font-family:'Michroma',sans-serif;color:#fff;font-size:1.15rem;letter-spacing:.34em;line-height:1;padding-right:.34em}
+.brand small{color:var(--muted);font-weight:400;font-size:.58rem;letter-spacing:.12em;font-family:"JetBrains Mono",monospace}
 .clock{color:var(--green);font-variant-numeric:tabular-nums}
 .search{display:flex;gap:8px}
 input[type=text]{flex:1;background:var(--panel);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:11px 12px;font:inherit;outline:none}
@@ -133,6 +151,9 @@ a.row:hover .dest .mq{color:var(--green)}
 .row.past{opacity:.38}.row.past .dep{color:var(--past);font-weight:400}
 .row:not(.past):first-of-type .dep{text-shadow:0 0 8px rgba(57,255,122,.5)}
 .empty{padding:14px 12px;color:var(--muted)}
+.daybreak{padding:8px 12px;color:var(--muted);font-size:.66rem;letter-spacing:1px;text-transform:uppercase;text-align:center;border-top:1px solid var(--line);background:#0a120c}
+a.row.tmrw{opacity:.72}
+a.row.tmrw .eta{color:var(--green-dim)}
 .trip{padding:4px 0}
 .thead{padding:10px 12px;border-bottom:1px solid var(--line)}
 .thead .tnum{color:var(--green);font-weight:700;font-size:1.05rem}
@@ -173,7 +194,7 @@ function pageShell(title, bodyHtml, extraScript="") {
 
 function homePage() {
   return pageShell("vlaky · ensecnet", `
-  <header><div class="brand">vlaky<small>.ensecnet.net</small></div><div class="clock" id="clk"></div></header>
+  <header><div class="brand"><span class="name">TERMINAL</span><small>vlaky.ensecnet.net · sprievodca cestovaním</small></div><div class="clock" id="clk"></div></header>
   <div class="search">
     <input id="q" type="text" placeholder="hľadaj stanicu… (napr. Trenčín)" autocomplete="off" autocapitalize="off">
     <button class="geo" id="geo" title="najbližšia stanica">📍</button>
@@ -248,21 +269,25 @@ function homePage() {
 function boardPage(board, stationId) {
   if (!board.station) {
     return pageShell("stanica nenájdená", `
-    <header><div class="brand">vlaky<small>.ensecnet.net</small></div></header>
+    <header><div class="brand"><span class="name">TERMINAL</span><small>vlaky.ensecnet.net · sprievodca cestovaním</small></div></header>
     <div class="empty">Stanica „${esc(stationId)}" sa nenašla. <a class="back" href="/">← späť na výber</a></div>`);
   }
   const { minutes } = nowParts();
+  let dayBreak = false;
   const rowsHtml = board.rows.length ? board.rows.map(r => {
-    const eta = r.past ? "" : (r.dep_min - minutes <= 0 ? "teraz" : "o " + (r.dep_min - minutes) + "′");
+    const eta = r.tomorrow ? "zajtra" : (r.past ? "" : (r.dep_min - minutes <= 0 ? "teraz" : "o " + (r.dep_min - minutes) + "′"));
     const href = `/vlak/${encodeURIComponent(r.num||"")}?z=${encodeURIComponent(stationId)}&t=${r.dep_min}`;
-    return `<a class="row${r.past?" past":""}" href="${href}">
+    // oddeľovač "zajtra" pred prvým zajtrajším spojom
+    let sep = "";
+    if (r.tomorrow && !dayBreak) { dayBreak = true; sep = `<div class="daybreak">— zajtra ráno —</div>`; }
+    return `${sep}<a class="row${r.past?" past":""}${r.tomorrow?" tmrw":""}" href="${href}">
       <span class="dep">${mmToHHMM(r.dep_min)}</span>
       <span class="dest"><span class="mq">${esc(r.headsign||"")} <small>${esc(r.cat||"")}${r.num?" "+esc(r.num):""}</small></span></span>
       <span class="eta">${eta}</span></a>`;
   }).join("") : `<div class="empty">Dnes už nič neodchádza.</div>`;
 
   return pageShell(board.station.name + " · odchody", `
-  <header><div class="brand">vlaky<small>.ensecnet.net</small></div><div class="clock" id="clk"></div></header>
+  <header><div class="brand"><span class="name">TERMINAL</span><small>vlaky.ensecnet.net · sprievodca cestovaním</small></div><div class="clock" id="clk"></div></header>
   <div><a class="back" href="/">← iná stanica</a></div>
   <div class="panel">
     <div class="phead"><span class="st">${esc(board.station.name)}</span><span class="star" id="star" title="obľúbené">☆</span></div>
@@ -299,7 +324,7 @@ function boardPage(board, stationId) {
 function tripPage(data, num) {
   if (!data || !data.trip) {
     return pageShell("vlak nenájdený", `
-    <header><div class="brand">vlaky<small>.ensecnet.net</small></div></header>
+    <header><div class="brand"><span class="name">TERMINAL</span><small>vlaky.ensecnet.net · sprievodca cestovaním</small></div></header>
     <div class="empty">Vlak „${esc(num)}" sa nenašiel. <a class="back" href="/">← späť</a></div>`);
   }
   const { trip, stops, fromStation } = data;
@@ -322,7 +347,7 @@ function tripPage(data, num) {
 
   const backHref = fromStation ? `/${encodeURIComponent(fromStation)}` : "/";
   return pageShell(`${trip.cat||""} ${num} · trasa`, `
-  <header><div class="brand">vlaky<small>.ensecnet.net</small></div><div class="clock" id="clk"></div></header>
+  <header><div class="brand"><span class="name">TERMINAL</span><small>vlaky.ensecnet.net · sprievodca cestovaním</small></div><div class="clock" id="clk"></div></header>
   <div><a class="back" href="${backHref}">← späť na odchody</a></div>
   <div class="panel trip">
     <div class="thead">
@@ -345,7 +370,7 @@ function tripPage(data, num) {
   `);
 }
 const MANIFEST = JSON.stringify({
-  name: "vlaky.ensecnet.net", short_name: "vlaky", start_url: "/", display: "standalone",
+  name: "TERMINAL · vlaky.ensecnet.net", short_name: "TERMINAL", start_url: "/", display: "standalone",
   background_color: "#0a0f0a", theme_color: "#0a0f0a",
   icons: [{ src: "/icon.svg", sizes: "any", type: "image/svg+xml" }],
 });
@@ -463,6 +488,10 @@ export default {
     if (path === "/manifest.webmanifest") return new Response(MANIFEST, { headers: { "content-type": "application/manifest+json" } });
     if (path === "/sw.js") return new Response(SW, { headers: { "content-type": "application/javascript", "cache-control": "no-cache" } });
     if (path === "/icon.svg") return new Response(ICON, { headers: { "content-type": "image/svg+xml", "cache-control": "public,max-age=86400" } });
+    if (path === "/font/michroma.woff2") {
+      const bytes = Uint8Array.from(atob(MICHROMA_WOFF2_B64), c => c.charCodeAt(0));
+      return new Response(bytes, { headers: { "content-type": "font/woff2", "cache-control": "public,max-age=31536000,immutable" } });
+    }
 
     // API: zoznam staníc (cache 1h na hrane)
     if (path === "/api/stations") {

@@ -14,5 +14,6 @@
   "devDependencies": {
     "adm-zip": "^0.5.16",
     "wrangler": "^4.0.0"
-  }
+  },
+  "type": "module"
 }
