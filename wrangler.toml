@@ -6,11 +6,10 @@ routes = [
   { pattern = "vlaky.ensecnet.net", custom_domain = true }
 ]
 
-# D1 databáza. database_id doplň po `wrangler d1 create vlaky` (vypíše ti ho).
 [[d1_databases]]
 binding = "DB"
 database_name = "vlaky"
-database_id = "REPLACE_AFTER_d1_create"
+database_id = "7f47d5d7-25f3-4ca3-b5bd-afbbfc635ebf"
 
 [observability]
 enabled = true

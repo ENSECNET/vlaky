@@ -104,3 +104,17 @@ to drží stovky až tisíce ľudí denne zadarmo. Ak by raz prerástlo → Work
 
 **Bez živých meškaní** — GTFS je plán. Pre realtime by bol potrebný GTFS-RT feed,
 ktorý SK zatiaľ verejne nemá; v `src/index.js` je na to miesto (getBoard).
+
+## Naplnenie reálnymi dátami (jeden klik)
+V priečinku projektu spusti:
+```powershell
+.\update.ps1
+```
+Skript: stiahne GTFS zo ŽSR → spustí build-d1.js → nahrá do D1 (remote).
+Ak by sťahovanie zlyhalo, stiahni `gtfs.zip` ručne z
+https://data.slovensko.sk/datasety/ca4cb74c-7192-4198-b074-34acd9d295e7
+do priečinka a spusti skript znova.
+
+Cestovný poriadok 2025/2026 platí 14.12.2025 – 12.12.2026. Stačí spustiť
+`update.ps1` raz za mesiac (alebo po veľkej zmene CP). Automatický mesačný
+refresh cez Cloudflare Cron Trigger je plánovaný do v2.

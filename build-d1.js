@@ -14,7 +14,7 @@ const path = require("path");
 const AdmZip = require("adm-zip");
 
 function parseCSV(text) {
-  const lines = text.split(/\r?\n/).filter(l => l.length);
+  const lines = text.replace(/\r/g, "").split(/\n/).filter(l => l.length);
   const head = splitCSVLine(lines[0]);
   const rows = [];
   for (let i = 1; i < lines.length; i++) {
@@ -63,7 +63,9 @@ function main() {
   const routeCat = {}, routeIsRail = {};
   for (const r of routes) {
     routeCat[r.route_id] = r.route_short_name || r.route_long_name || "vlak";
-    routeIsRail[r.route_id] = String(r.route_type) === "2" || /vlak|train|rail|^os$|^r$|^rex$|^ic$|^ec$/i.test(routeCat[r.route_id]);
+    const rt = parseInt(r.route_type, 10);
+    const isRailType = rt === 2 || (rt >= 100 && rt <= 117);
+    routeIsRail[r.route_id] = isRailType || /vlak|train|rail|^os$|^r$|^rex$|^ic$|^ec$|^ex$|^rr$|^zr$/i.test(routeCat[r.route_id]);
   }
   // service_id -> platnosť
   const svc = {};
