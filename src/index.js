@@ -83,8 +83,11 @@ button,.btn{background:var(--panel);border:1px solid var(--line);color:var(--gre
 .geo{white-space:nowrap}
 .hint{color:var(--muted);font-size:.72rem}
 .results{display:flex;flex-direction:column;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden}
-.results a{background:var(--panel);color:var(--txt);text-decoration:none;padding:11px 12px}
+.results a{background:var(--panel);color:var(--txt);text-decoration:none;padding:11px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px}
 .results a:active{background:#11221a}
+.results a.sel{background:#11221a}
+.results a b{color:var(--green);font-weight:700}
+.results a .sub{color:var(--muted);font-size:.7rem;white-space:nowrap}
 .favs{display:flex;flex-wrap:wrap;gap:8px}
 .fav{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 12px;color:var(--green);text-decoration:none;font-size:.85rem}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
@@ -137,16 +140,45 @@ function homePage() {
   const clk=document.getElementById('clk');
   function tick(){const d=new Date().toLocaleTimeString('sk-SK',{timeZone:'${TZ}',hour:'2-digit',minute:'2-digit'});clk.textContent=d;}
   tick();setInterval(tick,15000);
-  let STATIONS=[];
-  fetch('/api/stations').then(r=>r.json()).then(d=>{STATIONS=d;});
-  const q=document.getElementById('q'),res=document.getElementById('res');
+  let STATIONS=[],READY=false;
+  const q=document.getElementById('q'),res=document.getElementById('res'),hint=document.getElementById('hint');
+  fetch('/api/stations').then(r=>r.json()).then(d=>{STATIONS=d||[];READY=true;if(q.value)run();});
   function norm(s){return (s||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase().trim();}
-  q.addEventListener('input',()=>{
-    const v=norm(q.value);res.innerHTML='';
-    if(v.length<2)return;
-    const hits=STATIONS.filter(s=>s.norm.includes(v)).slice(0,12);
-    res.innerHTML=hits.map(s=>'<a href="/'+s.id+'">'+s.name+'</a>').join('');
+  function score(st,v){
+    const n=st.norm;
+    if(n===v)return 0;
+    if(n.startsWith(v))return 1;
+    if(n.split(/[ .\\-]/).some(w=>w.startsWith(v)))return 2;
+    const i=n.indexOf(v);
+    if(i<0)return 99;
+    return 3+i*0.001;
+  }
+  function hi(name,v){
+    const nn=norm(name),i=nn.indexOf(v);
+    if(i<0)return name;
+    return name.slice(0,i)+'<b>'+name.slice(i,i+v.length)+'</b>'+name.slice(i+v.length);
+  }
+  let sel=-1,cur=[];
+  function run(){
+    const v=norm(q.value);res.innerHTML='';sel=-1;cur=[];
+    if(!v){hint.textContent=READY?'Zadaj nazov stanice.':'Nacitavam stanice...';return;}
+    if(!READY){hint.textContent='Nacitavam stanice...';return;}
+    cur=STATIONS.map(s=>({s,sc:score(s,v)})).filter(x=>x.sc<99)
+      .sort((a,b)=>a.sc-b.sc||a.s.norm.length-b.s.norm.length).slice(0,15).map(x=>x.s);
+    if(!cur.length){hint.textContent='Nic sa nenaslo pre \u201E'+q.value+'\u201C.';return;}
+    hint.textContent=cur.length+' '+(cur.length===1?'stanica':(cur.length<5?'stanice':'stanic'));
+    res.innerHTML=cur.map((s,idx)=>'<a href="/'+s.id+'" data-i="'+idx+'">'+hi(s.name,v)+'</a>').join('');
+  }
+  const debounce=(f,ms)=>{let t;return()=>{clearTimeout(t);t=setTimeout(f,ms);};};
+  q.addEventListener('input',debounce(run,90));
+  q.addEventListener('keydown',e=>{
+    if(!cur.length)return;
+    if(e.key==='ArrowDown'){e.preventDefault();sel=(sel+1)%cur.length;mark();}
+    else if(e.key==='ArrowUp'){e.preventDefault();sel=(sel-1+cur.length)%cur.length;mark();}
+    else if(e.key==='Enter'){e.preventDefault();location.href='/'+cur[sel<0?0:sel].id;}
   });
+  function mark(){[...res.children].forEach((a,i)=>a.classList.toggle('sel',i===sel));}
+  q.focus();
   // obľúbené z localStorage
   try{
     const favs=JSON.parse(localStorage.getItem('vlaky_favs')||'[]');
