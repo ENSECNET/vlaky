@@ -1,0 +1,18 @@
+{
+  "name": "vlaky-ensecnet",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Univerzálna vlaková vyveska — vlaky.ensecnet.net (Cloudflare Worker + D1)",
+  "scripts": {
+    "build:data": "node build-d1.js",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:create": "wrangler d1 create vlaky",
+    "db:init": "wrangler d1 execute vlaky --remote --file=./migrations/0001_init.sql",
+    "db:seed": "wrangler d1 execute vlaky --remote --file=./data/seed.sql"
+  },
+  "devDependencies": {
+    "adm-zip": "^0.5.16",
+    "wrangler": "^4.0.0"
+  }
+}

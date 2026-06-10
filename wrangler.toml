@@ -1,0 +1,22 @@
+name = "vlaky"
+main = "src/index.js"
+compatibility_date = "2025-06-01"
+
+routes = [
+  { pattern = "vlaky.ensecnet.net", custom_domain = true }
+]
+
+# D1 databáza. database_id doplň po `wrangler d1 create vlaky` (vypíše ti ho).
+[[d1_databases]]
+binding = "DB"
+database_name = "vlaky"
+database_id = "REPLACE_AFTER_d1_create"
+
+[observability]
+enabled = true
+
+# /ops dashboard má HTTP Basic Auth. Nastav meno+heslo ako secrets:
+#   npx wrangler secret put OPS_USER
+#   npx wrangler secret put OPS_PASS
+# Otvor /ops → prehliadač vyhodí prihlasovacie okno.
+# (Voliteľne navrch: Cloudflare Access nad /ops pre login cez Google/MFA.)

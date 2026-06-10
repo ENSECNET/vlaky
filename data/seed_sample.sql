@@ -1,0 +1,37 @@
+PRAGMA foreign_keys=OFF;
+DELETE FROM departures; DELETE FROM stations;
+INSERT INTO stations (id,name,norm,lat,lon) VALUES
+ ('trencin','Trenčín','trencin',48.8946,18.0440),
+ ('bratislava-hl-st','Bratislava hl.st.','bratislava hl.st.',48.1586,17.1067),
+ ('kosice','Košice','kosice',48.7164,21.2611),
+ ('zilina','Žilina','zilina',49.2031,18.7408),
+ ('trnava','Trnava','trnava',48.3774,17.5880);
+INSERT OR IGNORE INTO departures (station_id,dep_min,cat,num,headsign,wd,we) VALUES
+ ('trencin',367,'REX','1802','Bratislava hl.st.',1,0),
+ ('trencin',427,'R','702','Bratislava hl.st.',1,1),
+ ('trencin',433,'Os','3107','Žilina',1,1),
+ ('trencin',487,'IC','521','Košice',1,1),
+ ('trencin',547,'Os','5144','Trnava',1,1),
+ ('trencin',607,'R','706','Bratislava hl.st.',1,1),
+ ('trencin',613,'Os','3109','Žilina',1,1),
+ ('trencin',667,'REX','1808','Bratislava hl.st.',1,0),
+ ('trencin',727,'Os','3111','Žilina',1,1),
+ ('trencin',787,'R','710','Bratislava hl.st.',1,1),
+ ('trencin',793,'Os','3113','Žilina',1,1),
+ ('trencin',847,'Os','5152','Trnava',1,1),
+ ('trencin',907,'R','714','Bratislava hl.st.',1,1),
+ ('trencin',913,'IC','523','Košice',1,1),
+ ('trencin',967,'Os','3115','Žilina',1,1),
+ ('trencin',1027,'R','718','Bratislava hl.st.',1,1),
+ ('trencin',1087,'Os','3117','Žilina',1,1),
+ ('trencin',1147,'R','722','Bratislava hl.st.',1,1),
+ ('trencin',1207,'Os','3119','Žilina',1,1),
+ ('trencin',1267,'R','726','Bratislava hl.st.',1,1),
+ ('kosice',420,'IC','520','Bratislava hl.st.',1,1),
+ ('kosice',480,'Os','8801','Prešov',1,1),
+ ('kosice',540,'R','611','Žilina',1,1),
+ ('kosice',600,'IC','522','Bratislava hl.st.',1,1),
+ ('kosice',660,'Os','8803','Prešov',1,1),
+ ('kosice',720,'R','613','Žilina',1,1),
+ ('kosice',840,'IC','524','Bratislava hl.st.',1,1),
+ ('kosice',960,'R','615','Žilina',1,1);
