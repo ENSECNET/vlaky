@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deployment — vlaky Docs</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-root="../" data-page="pages/deploy.html">
+<button class="menu-toggle" aria-label="Menu">☰</button>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">🚆</div>
+      <div class="brand-text"><div class="name">vlaky</div><div class="sub">ensecnet · Cloudflare</div></div>
+    </div>
+    <nav class="nav"></nav>
+  </aside>
+  <div class="content-wrap"><main class="content">
+    <div class="breadcrumb"><a href="../index.html">Docs</a><span>/</span><span data-i18n="nav.group.ops"></span><span>/</span><span data-i18n="dep.crumb"></span></div>
+    <h1 data-i18n="dep.title"></h1>
+    <p class="lead" data-i18n="dep.lead"></p>
+    <h2 data-i18n="dep.s1"></h2>
+    <pre><code>cd ~/vlaky && npm install
+npx wrangler d1 create vlaky
+# → paste the printed database_id into wrangler.toml</code></pre>
+    <h2 data-i18n="dep.s2"></h2>
+    <p data-i18n="dep.s2.body"></p>
+    <pre><code>npx wrangler d1 execute vlaky --remote --file=./migrations/0001_init.sql
+# quick test sample:
+npx wrangler d1 execute vlaky --remote --file=./data/seed_sample.sql
+# real GTFS:
+node build-d1.js gtfs.zip
+npx wrangler d1 execute vlaky --remote --file=./data/seed.sql</code></pre>
+    <h2 data-i18n="dep.s3"></h2>
+    <p data-i18n="dep.s3.body"></p>
+    <pre><code>npx wrangler secret put OPS_USER
+npx wrangler secret put OPS_PASS</code></pre>
+    <h2 data-i18n="dep.s4"></h2>
+    <p data-i18n="dep.s4.body"></p>
+    <pre><code>npx wrangler deploy</code></pre>
+    <div class="pager"><a href="architecture.html"><span class="dir" data-i18n="pager.prev"></span><span data-i18n="nav.arch"></span></a><a class="next" href="data.html"><span class="dir" data-i18n="pager.next"></span><span data-i18n="nav.data"></span></a></div>
+    <div class="doc-footer" data-i18n="footer"></div>
+  </main></div>
+</div>
+<script src="../assets/nav.js"></script>
+</body>
+</html>

@@ -1,120 +1,102 @@
-# vlaky.ensecnet.net — univerzálna vlaková vyveska
+<div align="center">
 
-Vyber stanicu (search / obľúbené / GPS „najbližšia") → tabuľa odchodov:
-3 práve odišlé (stlmené) + 15 nasledujúcich, s cieľom, číslom vlaku a odpočtom.
-Cloudflare Worker + D1. Plánové časy z GTFS (ZSSK/ŽSR), bez živých meškaní.
+# 🚆 vlaky.ensecnet.net
 
-## Funkcie v1
-- Search staníc s našepkávačom (autocomplete, diakritika sa normalizuje)
-- Obľúbené stanice (localStorage, lokálne v telefóne)
-- `/{stanica}` v URL → záložka/ikona na plochu rovno na konkrétnu stanicu
-- 📍 najbližšia stanica z GPS — **súradnice sa použijú a zahodia, neukladajú sa**
-- PWA — „pridať na plochu", správa sa ako appka
-- Odpočet „o X′ / teraz"
-- Edge cache 45 s → drží to vo free tieri aj pri nápore (cache pohltí viral, D1 ostáva v kľude)
-- Anonymné štatistiky: agregát (deň · stanica · hodina · kraj · mesto z CF edge). Žiadne IP, žiadne GPS, žiadni jednotlivci.
-- `/ops?k=TOKEN` — operačný dashboard (počty, top stanice, kraje, záťaž dňa)
+**A universal Slovak train departure board**
 
-## Štruktúra
+Pick a station · live-counting departures · Cloudflare Worker + D1 · PWA
+
+[![Live](https://img.shields.io/badge/🚆_Live-vlaky.ensecnet.net-0bb3a0?style=for-the-badge)](https://vlaky.ensecnet.net)
+[![Docs](https://img.shields.io/badge/📖_Documentation-View_docs-131c2b?style=for-the-badge)](https://ensecnet.github.io/vlaky/index.html)
+[![Platform](https://img.shields.io/badge/Platform-Cloudflare_Worker_·_D1-131c2b?style=for-the-badge)](https://workers.cloudflare.com/)
+
+</div>
+
+---
+
+> ### 🚆 [**Open the live board → vlaky.ensecnet.net**](https://vlaky.ensecnet.net)
+>
+> Pick a station (search, favourites, or GPS nearest) and get a live board of
+> departures. It's a PWA — add it to your home screen and it behaves like an app.
+> Full documentation (EN / SK) with architecture and deployment is
+> **[here](https://ensecnet.github.io/vlaky/index.html)**.
+
+---
+
+## What it is
+
+A departure board for Slovak train stations: choose a station and see three
+just-left departures (dimmed) plus the next fifteen — each with destination,
+train number, and a live countdown. Plan times come from GTFS (ZSSK / ŽSR);
+no live delays.
+
+Built as a single **Cloudflare Worker** with a **D1 (SQLite)** database and a
+45-second edge cache — no origin server, runs inside the free tier.
+
+## Features
+
+- **Station search** with an accent-normalising autocomplete
+- **Favourites** kept in `localStorage` on the device
+- **Per-station URL** (`/{station}`) — bookmark or pin to the home screen
+- **📍 GPS nearest station** — coordinates are used and discarded, never stored
+- **PWA** — installable, app-like
+- **Live countdown** — "in X′ / now"
+- **45-second edge cache** — absorbs traffic spikes, keeps D1 idle
+- **Anonymous aggregate stats** — day · station · hour · region; no IPs, no individuals
+- **`/ops` dashboard** — operational view behind login
+
+## Privacy by design
+
+GPS coordinates for the nearest-station lookup are used in the request and thrown
+away — never stored. Statistics are aggregate only (day, station, hour, region
+from the Cloudflare edge); no IP addresses, no individual tracking.
+
+## Quick start
+
+```bash
+cd ~/vlaky && npm install
+npx wrangler d1 create vlaky          # paste database_id into wrangler.toml
+npx wrangler d1 execute vlaky --remote --file=./migrations/0001_init.sql
+node build-d1.js gtfs.zip             # build timetable from GTFS
+npx wrangler d1 execute vlaky --remote --file=./data/seed.sql
+npx wrangler deploy                   # binds vlaky.ensecnet.net (custom_domain)
+```
+
+Full walk-through — schema, seeding, `/ops` login, custom domain — is in the
+**[documentation](https://ensecnet.github.io/vlaky/pages/deploy.html)**.
+
+## Repository layout
+
 ```
 vlaky/
 ├─ src/index.js              # Worker: board, search, geo, stats, /ops, PWA
-├─ migrations/0001_init.sql  # D1 schéma
-├─ build-d1.js               # GTFS zip -> data/seed.sql + data/stations.json
-├─ data/seed_sample.sql      # malá vzorka na test pred reálnym GTFS
+├─ migrations/0001_init.sql  # D1 schema
+├─ build-d1.js               # GTFS zip → data/seed.sql + data/stations.json
+├─ data/seed_sample.sql      # small sample for a pre-GTFS test
+├─ update.ps1                # one-shot GTFS refresh (Windows)
 ├─ wrangler.toml
 └─ package.json
 ```
 
-## Nasadenie — krok za krokom
+## Documentation
 
-### 1) Inštalácia
-```bash
-cd ~/vlaky && npm install
-```
+Served from the `docs/` folder via GitHub Pages (EN primary, SK switch):
 
-### 2) Vytvor D1 databázu
-```bash
-npx wrangler d1 create vlaky
-```
-Vypíše `database_id` — **vlož ho do `wrangler.toml`** namiesto `REPLACE_AFTER_d1_create`.
+| Page | What's in it |
+|------|--------------|
+| [Overview](https://ensecnet.github.io/vlaky/index.html) | Features, privacy model |
+| [Architecture](https://ensecnet.github.io/vlaky/pages/architecture.html) | Worker + D1, edge cache, endpoints |
+| [Deployment](https://ensecnet.github.io/vlaky/pages/deploy.html) | From npm install to bound domain |
+| [GTFS data refresh](https://ensecnet.github.io/vlaky/pages/data.html) | Rebuilding the timetable |
 
-### 3) Schéma
-```bash
-npx wrangler d1 execute vlaky --remote --file=./migrations/0001_init.sql
-```
+## Limits / cost
 
-### 4a) Rýchly test so vzorkou (voliteľné)
-```bash
-npx wrangler d1 execute vlaky --remote --file=./data/seed_sample.sql
-```
+Free tier: Worker 100k req/day, D1 5 GB + 5M reads/day. With the 45-second edge
+cache that holds hundreds to thousands of daily users for free. Times are GTFS
+**plan**, not realtime — a realtime board would need a GTFS-RT feed, which
+Slovakia doesn't publish openly yet (there's a hook for it in the Worker).
 
-### 4b) Reálne dáta z GTFS
-```bash
-# stiahni aktuálny GTFS zip ZSSK (Transitland feed f-eo0-zssk) ako gtfs.zip
-node build-d1.js gtfs.zip
-npx wrangler d1 execute vlaky --remote --file=./data/seed.sql
-```
+## License
 
-### 5) Login pre /ops dashboard (HTTP Basic Auth)
-```bash
-npx wrangler secret put OPS_USER     # napr. paul
-npx wrangler secret put OPS_PASS     # tvoje heslo
-```
-Otvor `/ops` → prehliadač vyhodí prihlasovacie okno (meno + heslo).
-Heslo nechodí v URL. Voliteľne navrch **Cloudflare Access** (login cez Google/MFA,
-zadarmo do 50 ľudí): CF dashboard → Zero Trust → Access → Applications →
-Add → Self-hosted → doména `vlaky.ensecnet.net`, path `/ops` → pravidlo na tvoj email.
-Vtedy appku netreba meniť, bránu rieši platforma.
-
-### 6) Nasadenie
-```bash
-npx wrangler deploy
-```
-Vďaka `custom_domain = true` sa naviaže `vlaky.ensecnet.net` automaticky
-(zóna ensecnet.net musí byť v tom istom CF účte).
-
-## Git + CI deploy (ako ensecnet / doprava)
-1. Repo `TencoNemaStrach/vlaky`, pushni obsah.
-2. CF dashboard → Workers & Pages → Create → Import a repository → vyber `vlaky`.
-3. Deploy command: `npx wrangler deploy`, Build prázdne, Path `/`.
-4. Pozn.: D1 binding aj `database_id` musia byť vo `wrangler.toml` commitnuté
-   (database_id nie je tajné). `OPS_TOKEN` drž ako secret, nie v repe.
-
-## Aktualizácia poriadku
-Cestovný poriadok sa mení (teraz výluky). Po novom GTFS:
-```bash
-node build-d1.js gtfs.zip
-npx wrangler d1 execute vlaky --remote --file=./data/seed.sql
-```
-Pokojne cez cron raz za pár týždňov.
-
-## Endpointy
-- `/`                      — výber stanice
-- `/{stanica}`             — tabuľa odchodov (HTML, edge cache 45 s)
-- `/api/stations`          — zoznam staníc (cache 24 h)
-- `/api/board?s=ID`        — odchody (JSON)
-- `/api/nearest?lat=&lon=` — najbližšia stanica
-- `/ops`                     — operačný dashboard (Basic Auth)
-- `/healthz`
-
-## Limity / náklady
-Free tier: Worker 100k req/deň, D1 5 GB + 5M čítaní/deň. Pri edge cache 45 s
-to drží stovky až tisíce ľudí denne zadarmo. Ak by raz prerástlo → Workers Paid 5 USD/mes.
-
-**Bez živých meškaní** — GTFS je plán. Pre realtime by bol potrebný GTFS-RT feed,
-ktorý SK zatiaľ verejne nemá; v `src/index.js` je na to miesto (getBoard).
-
-## Naplnenie reálnymi dátami (jeden klik)
-V priečinku projektu spusti:
-```powershell
-.\update.ps1
-```
-Skript: stiahne GTFS zo ŽSR → spustí build-d1.js → nahrá do D1 (remote).
-Ak by sťahovanie zlyhalo, stiahni `gtfs.zip` ručne z
-https://data.slovensko.sk/datasety/ca4cb74c-7192-4198-b074-34acd9d295e7
-do priečinka a spusti skript znova.
-
-Cestovný poriadok 2025/2026 platí 14.12.2025 – 12.12.2026. Stačí spustiť
-`update.ps1` raz za mesiac (alebo po veľkej zmene CP). Automatický mesačný
-refresh cez Cloudflare Cron Trigger je plánovaný do v2.
+GTFS data © ZSSK / ŽSR, from [data.slovensko.sk](https://data.slovensko.sk).
+Code under this repository's license.

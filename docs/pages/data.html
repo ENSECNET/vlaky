@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GTFS data refresh — vlaky Docs</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-root="../" data-page="pages/data.html">
+<button class="menu-toggle" aria-label="Menu">☰</button>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">🚆</div>
+      <div class="brand-text"><div class="name">vlaky</div><div class="sub">ensecnet · Cloudflare</div></div>
+    </div>
+    <nav class="nav"></nav>
+  </aside>
+  <div class="content-wrap"><main class="content">
+    <div class="breadcrumb"><a href="../index.html">Docs</a><span>/</span><span data-i18n="nav.group.ops"></span><span>/</span><span data-i18n="data.crumb"></span></div>
+    <h1 data-i18n="data.title"></h1>
+    <p class="lead" data-i18n="data.lead"></p>
+    <h2 data-i18n="data.how"></h2>
+    <p data-i18n="data.how.body"></p>
+    <pre><code># Windows one-shot:
+.\update.ps1
+
+# manual:
+node build-d1.js gtfs.zip
+npx wrangler d1 execute vlaky --remote --file=./data/seed.sql</code></pre>
+    <div class="note"><span class="label" data-i18n="data.when.label"></span><p data-i18n="data.when.body"></p></div>
+    <div class="pager"><a href="deploy.html"><span class="dir" data-i18n="pager.prev"></span><span data-i18n="nav.deploy"></span></a><a class="next" href="../index.html"><span class="dir" data-i18n="pager.next"></span><span data-i18n="nav.overview"></span></a></div>
+    <div class="doc-footer" data-i18n="footer"></div>
+  </main></div>
+</div>
+<script src="../assets/nav.js"></script>
+</body>
+</html>

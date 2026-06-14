@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Architecture — vlaky Docs</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-root="../" data-page="pages/architecture.html">
+<button class="menu-toggle" aria-label="Menu">☰</button>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">🚆</div>
+      <div class="brand-text"><div class="name">vlaky</div><div class="sub">ensecnet · Cloudflare</div></div>
+    </div>
+    <nav class="nav"></nav>
+  </aside>
+  <div class="content-wrap"><main class="content">
+    <div class="breadcrumb"><a href="../index.html">Docs</a><span>/</span><span data-i18n="nav.group.start"></span><span>/</span><span data-i18n="arch.crumb"></span></div>
+    <h1 data-i18n="arch.title"></h1>
+    <p class="lead" data-i18n="arch.lead"></p>
+    <h2 data-i18n="arch.flow"></h2>
+    <p data-i18n="arch.flow.body"></p>
+    <pre><code>request /{station}
+      │
+      ▼
+ ┌─────────────┐   45s hold    ┌──────────────┐
+ │  Edge cache  │ ◀───────────▶ │   Worker     │
+ └─────────────┘                │  src/index.js│
+      ▲                         └──────┬───────┘
+      │ serves the crowd               │ reads departures
+      │ during spikes                  ▼
+   visitors                      ┌──────────┐
+                                 │ D1 SQLite│
+                                 └──────────┘</code></pre>
+    <h2 data-i18n="arch.parts"></h2>
+    <table><thead><tr><th data-i18n="arch.th.part"></th><th data-i18n="arch.th.role"></th></tr></thead><tbody>
+      <tr><td data-i18n="arch.r1.p"></td><td data-i18n="arch.r1.r"></td></tr>
+      <tr><td data-i18n="arch.r2.p"></td><td data-i18n="arch.r2.r"></td></tr>
+      <tr><td data-i18n="arch.r3.p"></td><td data-i18n="arch.r3.r"></td></tr>
+      <tr><td data-i18n="arch.r4.p"></td><td data-i18n="arch.r4.r"></td></tr>
+    </tbody></table>
+    <h2 data-i18n="arch.ep"></h2>
+    <pre><code>/                  station picker
+/{station}         departure board (HTML, edge cache 45s)
+/api/stations      station list (cache 24h)
+/api/board?s=ID    departures (JSON)
+/api/nearest?lat=&lon=   nearest station
+/ops               operational dashboard (Basic Auth)
+/healthz           health check</code></pre>
+    <div class="warn"><span class="label" data-i18n="arch.realtime.label"></span><p data-i18n="arch.realtime.body"></p></div>
+    <div class="pager"><a href="../index.html"><span class="dir" data-i18n="pager.prev"></span><span data-i18n="nav.overview"></span></a><a class="next" href="deploy.html"><span class="dir" data-i18n="pager.next"></span><span data-i18n="nav.deploy"></span></a></div>
+    <div class="doc-footer" data-i18n="footer"></div>
+  </main></div>
+</div>
+<script src="../assets/nav.js"></script>
+</body>
+</html>
