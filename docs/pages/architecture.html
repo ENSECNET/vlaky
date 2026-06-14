@@ -41,9 +41,13 @@
       <tr><td data-i18n="arch.r3.p"></td><td data-i18n="arch.r3.r"></td></tr>
       <tr><td data-i18n="arch.r4.p"></td><td data-i18n="arch.r4.r"></td></tr>
     </tbody></table>
+    <h2 data-i18n="arch.trip"></h2>
+    <p data-i18n="arch.trip.body"></p>
+
     <h2 data-i18n="arch.ep"></h2>
     <pre><code>/                  station picker
 /{station}         departure board (HTML, edge cache 45s)
+/vlak/{number}     trip route — full itinerary, passed vs upcoming
 /api/stations      station list (cache 24h)
 /api/board?s=ID    departures (JSON)
 /api/nearest?lat=&lon=   nearest station

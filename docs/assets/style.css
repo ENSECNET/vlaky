@@ -458,3 +458,98 @@ tr:nth-child(even) td { background: var(--c-paper); }
 }
 .live-link:hover { background: var(--c-accent-bright, #16e0c4); text-decoration: none; color: #06231f; }
 .live-link svg { flex: 0 0 auto; }
+
+/* ---- live CTA button + screenshot (vlaky index) ------------------------- */
+.live-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 24px;
+  padding: 11px 20px;
+  background: var(--c-accent);
+  color: #06231f;
+  font-weight: 600;
+  font-size: 15px;
+  text-decoration: none;
+  border-radius: 8px;
+  transition: background .12s ease, transform .08s ease;
+}
+.live-cta:hover { background: #16e0c4; text-decoration: none; color: #06231f; transform: translateY(-1px); }
+.shot {
+  margin: 0 0 28px;
+  text-align: center;
+}
+.shot img {
+  max-width: 360px;
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--c-border, #e2e8f0);
+  box-shadow: 0 10px 34px rgba(0,0,0,.16);
+}
+.shot figcaption {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--c-text-muted, #64748b);
+}
+
+/* ---- hero banner (vlaky index) ------------------------------------------ */
+.hero-banner {
+  display: block;
+  margin: 0 0 24px;
+  border-radius: 12px;
+  overflow: hidden;
+  line-height: 0;
+  box-shadow: 0 10px 34px rgba(0,0,0,.16);
+  transition: transform .1s ease;
+}
+.hero-banner:hover { transform: translateY(-2px); }
+.hero-banner img { width: 100%; height: auto; display: block; }
+
+/* ---- manifesto / why section (vlaky) ------------------------------------ */
+.manifesto {
+  margin: 32px 0;
+  padding: 28px 28px 24px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(11,179,160,.07), rgba(22,224,196,.03));
+  border: 1px solid rgba(11,179,160,.22);
+}
+.manifesto h2 {
+  margin-top: 0;
+  border: none;
+  padding: 0;
+}
+.manifesto-lead {
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--c-text, #1e293b);
+  margin: 8px 0 22px;
+}
+.manifesto-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin-bottom: 22px;
+}
+.manifesto-item h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+  color: var(--c-accent-deep, #0bb3a0);
+}
+.manifesto-item p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--c-text-muted, #475569);
+}
+.manifesto-close {
+  margin: 0;
+  padding-top: 18px;
+  border-top: 1px solid rgba(11,179,160,.2);
+  font-size: 15px;
+  font-style: italic;
+  line-height: 1.6;
+  color: var(--c-text, #1e293b);
+}
+@media (max-width: 720px) {
+  .manifesto-grid { grid-template-columns: 1fr; }
+}
